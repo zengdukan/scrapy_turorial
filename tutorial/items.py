@@ -16,4 +16,4 @@ class TutorialItem(scrapy.Item):
 class QuoteItem(scrapy.Item):
     text = scrapy.Field()
     author = scrapy.Field()
-    tags = scrapy.Field()
+    tags = scrapy.Field(serializer=str)

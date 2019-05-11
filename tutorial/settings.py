@@ -11,6 +11,14 @@
 
 BOT_NAME = 'tutorial'
 
+
+HOST='localhost'
+PORT = 13306
+USER='root'
+PASSWORD='mysql@zeng'
+DB_NAME='quotes'
+CHARSET='utf8'
+
 SPIDER_MODULES = ['tutorial.spiders']
 NEWSPIDER_MODULE = 'tutorial.spiders'
 
@@ -64,9 +72,9 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://doc.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    'tutorial.pipelines.TutorialPipeline': 300,
-#}
+ITEM_PIPELINES = {
+   'tutorial.pipelines.MysqlPipeline': 300,
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://doc.scrapy.org/en/latest/topics/autothrottle.html
