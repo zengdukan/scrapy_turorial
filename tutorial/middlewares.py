@@ -6,7 +6,9 @@
 # https://doc.scrapy.org/en/latest/topics/spider-middleware.html
 
 from scrapy import signals
-
+from scrapy.downloadermiddlewares.retry import RetryMiddleware
+from scrapy.utils.response import response_status_message
+from scrapy.utils.python import global_object_name
 
 class TutorialSpiderMiddleware(object):
     # Not all methods need to be defined. If a method is not defined,
@@ -56,48 +58,37 @@ class TutorialSpiderMiddleware(object):
         spider.logger.info('Spider opened: %s' % spider.name)
 
 
-class TutorialDownloaderMiddleware(object):
+class TutorialDownloaderMiddleware(RetryMiddleware):
     # Not all methods need to be defined. If a method is not defined,
     # scrapy acts as if the downloader middleware does not modify the
     # passed objects.
 
-    @classmethod
-    def from_crawler(cls, crawler):
-        # This method is used by Scrapy to create your spiders.
-        s = cls()
-        crawler.signals.connect(s.spider_opened, signal=signals.spider_opened)
-        return s
+   def _retry(self, request, reason, spider):
+        retries = request.meta.get('retry_times', 0) + 1
 
-    def process_request(self, request, spider):
-        # Called for each request that goes through the downloader
-        # middleware.
+        retry_times = self.max_retry_times
 
-        # Must either:
-        # - return None: continue processing this request
-        # - or return a Response object
-        # - or return a Request object
-        # - or raise IgnoreRequest: process_exception() methods of
-        #   installed downloader middleware will be called
-        return None
+        if 'max_retry_times' in request.meta:
+            retry_times = request.meta['max_retry_times']
 
-    def process_response(self, request, response, spider):
-        # Called with the response returned from the downloader.
+        stats = spider.crawler.stats
+        if retries <= retry_times:
+            spider.logger.debug("zeng Retrying %(request)s (failed %(retries)d times): %(reason)s",
+                         {'request': request, 'retries': retries, 'reason': reason},
+                         extra={'spider': spider})
+            retryreq = request.copy()
+            retryreq.meta['retry_times'] = retries
+            retryreq.dont_filter = True
+            retryreq.priority = request.priority + self.priority_adjust
 
-        # Must either;
-        # - return a Response object
-        # - return a Request object
-        # - or raise IgnoreRequest
-        return response
+            if isinstance(reason, Exception):
+                reason = global_object_name(reason.__class__)
 
-    def process_exception(self, request, exception, spider):
-        # Called when a download handler or a process_request()
-        # (from other downloader middleware) raises an exception.
-
-        # Must either:
-        # - return None: continue processing this exception
-        # - return a Response object: stops process_exception() chain
-        # - return a Request object: stops process_exception() chain
-        pass
-
-    def spider_opened(self, spider):
-        spider.logger.info('Spider opened: %s' % spider.name)
+            stats.inc_value('retry/count')
+            stats.inc_value('retry/reason_count/%s' % reason)
+            return retryreq
+        else:
+            stats.inc_value('retry/max_reached')
+            spider.logger.debug("zeng Gave up retrying %(request)s (failed %(retries)d times): %(reason)s",
+                         {'request': request, 'retries': retries, 'reason': reason},
+                         extra={'spider': spider})
